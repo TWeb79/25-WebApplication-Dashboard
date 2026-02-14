@@ -62,7 +62,7 @@
                             <span class="nav-icon"><i class="fas fa-plus"></i></span>
                             Add Application
                         </li>
-                        <li class="nav-item" data-view="settings">
+                        <li class="nav-item" id="settings-nav" data-view="settings">
                             <span class="nav-icon"><i class="fas fa-cog"></i></span>
                             Settings
                         </li>
@@ -152,6 +152,7 @@
                         <button class="filter-btn active" data-filter="all">All</button>
                         <button class="filter-btn" data-filter="online">Online</button>
                         <button class="filter-btn" data-filter="offline">Offline</button>
+                        <button class="filter-btn" data-filter="unknown">Unknown</button>
                     </div>
                 </div>
                 
@@ -199,6 +200,9 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" id="modal-reidentify-btn">
                     <i class="fas fa-magic"></i> Re-identify with AI
+                </button>
+                <button class="btn btn-secondary" id="modal-screenshot-btn">
+                    <i class="fas fa-camera"></i> Update Screenshot
                 </button>
                 <button class="btn btn-danger" id="modal-delete-btn">
                     <i class="fas fa-trash"></i> Delete
@@ -274,6 +278,9 @@
                             <button class="theme-btn" id="theme-dark-btn" title="Dark Mode">
                                 <i class="fas fa-moon"></i>
                             </button>
+                            <button class="theme-btn" id="theme-auto-btn" title="Auto Mode">
+                                <i class="fas fa-adjust"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -286,7 +293,7 @@
                             <div class="setting-description">Automatically check app status periodically</div>
                         </div>
                         <label class="toggle-switch">
-                            <input type="checkbox" id="auto-health-check" checked>
+                            <input type="checkbox" id="auto-refresh-toggle">
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
@@ -295,10 +302,9 @@
                             <div class="setting-label">Update Screenshots</div>
                             <div class="setting-description">Capture screenshots during scans</div>
                         </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="update-screenshots" checked>
-                            <span class="toggle-slider"></span>
-                        </label>
+                        <button class="btn btn-secondary" id="screenshot-refresh-btn">
+                            <i class="fas fa-camera"></i> Refresh
+                        </button>
                     </div>
                 </div>
                 
@@ -309,6 +315,17 @@
                             <div class="setting-label">Ollama Status</div>
                             <div class="setting-description" id="ollama-status-text">Checking...</div>
                         </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-label">Ollama URL</div>
+                            <input type="text" class="form-input" id="ollama-url" placeholder="http://localhost:11434" style="margin-top: 8px;">
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <button class="btn btn-secondary" id="test-ollama-btn" style="margin-top: 8px;">
+                            <i class="fas fa-plug"></i> Test Connection
+                        </button>
                     </div>
                 </div>
                 

@@ -52,7 +52,10 @@ app.get('/api/apps', (req, res) => {
         createdAt: app.discovered_at,
         screenshot: app.screenshot 
             ? `data:image/png;base64,${app.screenshot.toString('base64')}` 
-            : null
+            : null,
+        thumbnail: app.thumbnail 
+            ? `data:image/png;base64,${app.thumbnail.toString('base64')}` 
+            : (app.screenshot ? `data:image/png;base64,${app.screenshot.toString('base64')}` : null)
     }));
     
     res.json({ apps: appsWithScreenshots, stats });
@@ -75,6 +78,9 @@ app.get('/api/apps/:id', (req, res) => {
         screenshot: app.screenshot 
             ? `data:image/png;base64,${app.screenshot.toString('base64')}` 
             : null,
+        thumbnail: app.thumbnail 
+            ? `data:image/png;base64,${app.thumbnail.toString('base64')}` 
+            : (app.screenshot ? `data:image/png;base64,${app.screenshot.toString('base64')}` : null),
         history
     });
 });
@@ -219,7 +225,7 @@ app.post('/api/screenshots/update', async (req, res) => {
             const result = await screenshotAgent.captureScreenshot(app.url, app.id);
             
             if (result.success) {
-                database.updateScreenshot(app.id, result.buffer);
+                database.updateScreenshot(app.id, result.buffer, result.thumbnail);
                 broadcast({ 
                     type: 'screenshot_updated', 
                     appId: app.id,
@@ -240,6 +246,32 @@ app.post('/api/screenshots/update', async (req, res) => {
         
     } catch (error) {
         console.error('[Server] Screenshot update error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Update screenshot for a single app
+app.post('/api/apps/:id/screenshot', async (req, res) => {
+    const { id } = req.params;
+    console.log(`[Server] Updating screenshot for app ID ${id}...`);
+    
+    try {
+        const app = database.getAppById(id);
+        if (!app) {
+            return res.status(404).json({ error: 'App not found' });
+        }
+        
+        const result = await screenshotAgent.captureScreenshot(app.url, app.id);
+        
+        if (result.success) {
+            database.updateScreenshot(app.id, result.buffer, result.thumbnail);
+            res.json({ success: true });
+        } else {
+            res.status(500).json({ error: result.error || 'Failed to capture screenshot' });
+        }
+        
+    } catch (error) {
+        console.error('[Server] Single screenshot update error:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -299,7 +331,36 @@ app.post('/api/ai/identify/:id', async (req, res) => {
 app.get('/api/ai/status', async (req, res) => {
     const available = await aiAgent.isAvailable();
     const models = available ? await aiAgent.getModels() : [];
-    res.json({ available, models });
+    res.json({ 
+        available, 
+        models,
+        baseUrl: aiAgent.baseUrl,
+        model: aiAgent.model
+    });
+});
+
+// Test Ollama connection
+app.post('/api/ai/test', async (req, res) => {
+    try {
+        const { baseUrl } = req.body;
+        const testAgent = new (require('./agents/aiAgent'))();
+        if (baseUrl) {
+            testAgent.baseUrl = baseUrl;
+        }
+        const available = await testAgent.isAvailable();
+        const models = available ? await testAgent.getModels() : [];
+        res.json({ 
+            success: true,
+            available, 
+            models,
+            baseUrl: testAgent.baseUrl
+        });
+    } catch (error) {
+        res.status(500).json({ 
+            success: false,
+            error: error.message 
+        });
+    }
 });
 
 // ==================== INITIALIZATION ====================

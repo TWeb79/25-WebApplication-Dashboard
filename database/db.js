@@ -24,6 +24,7 @@ db.exec(`
         port INTEGER,
         status TEXT DEFAULT 'unknown',
         screenshot BLOB,
+        thumbnail BLOB,
         screenshot_updated_at DATETIME,
         category TEXT,
         discovered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -45,6 +46,13 @@ db.exec(`
     CREATE INDEX IF NOT EXISTS idx_scan_history_app_id ON scan_history(app_id);
 `);
 
+// Add thumbnail column if it doesn't exist (migration)
+try {
+    db.exec(`ALTER TABLE apps ADD COLUMN thumbnail BLOB`);
+} catch (e) {
+    // Column already exists, ignore
+}
+
 // Prepared statements for better performance
 const insertApp = db.prepare(`
     INSERT OR IGNORE INTO apps (url, port, name, category, discovered_at)
@@ -59,8 +67,10 @@ const updateAppName = db.prepare(`UPDATE apps SET name = ? WHERE url = ?`);
 const updateAppCategory = db.prepare(`UPDATE apps SET category = ? WHERE url = ?`);
 
 const updateScreenshot = db.prepare(`
-    UPDATE apps SET screenshot = ?, screenshot_updated_at = CURRENT_TIMESTAMP WHERE id = ?
+    UPDATE apps SET screenshot = ?, thumbnail = ?, screenshot_updated_at = CURRENT_TIMESTAMP WHERE id = ?
 `);
+
+const getScreenshot = db.prepare(`SELECT screenshot, thumbnail FROM apps WHERE id = ?`);
 
 const deleteScanHistory = db.prepare(`DELETE FROM scan_history WHERE app_id = ?`);
 const deleteApp = db.prepare(`DELETE FROM apps WHERE id = ?`);
@@ -112,14 +122,14 @@ const database = {
     },
 
     // Update screenshot
-    updateScreenshot: (id, screenshotBuffer) => {
-        updateScreenshot.run(screenshotBuffer, id);
+    updateScreenshot: (id, screenshotBuffer, thumbnailBuffer) => {
+        updateScreenshot.run(screenshotBuffer, thumbnailBuffer || null, id);
     },
 
-    // Get screenshot
+    // Get screenshot and thumbnail
     getScreenshot: (id) => {
-        const app = getAppById.get(id);
-        return app?.screenshot;
+        const app = getScreenshot.get(id);
+        return app;
     },
 
     // Remove app and related scan history
@@ -138,6 +148,11 @@ const database = {
     // Get app by URL
     getAppByUrl: (url) => {
         return getAppByUrl.get(url);
+    },
+
+    // Get app by ID
+    getAppById: (id) => {
+        return getAppById.get(id);
     },
 
     // Get all apps

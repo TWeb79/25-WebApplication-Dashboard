@@ -3,6 +3,7 @@
     "start": 80,
     "end": 18000
   },
+  "targetHost": "localhost",
   "scanIntervalMs": 60000,
   "ollama": {
     "model": "minimax-m2.1:cloud",
@@ -12,7 +13,10 @@
   "screenshot": {
     "width": 400,
     "height": 300,
-    "quality": 70
+    "quality": 70,
+    "thumbnails": true,
+    "thumbnailWidth": 120,
+    "thumbnailHeight": 90
   },
   "docker": {
     "enabled": false,

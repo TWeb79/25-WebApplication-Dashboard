@@ -10,6 +10,9 @@ class ScreenshotAgent {
         this.width = config.screenshot.width;
         this.height = config.screenshot.height;
         this.quality = config.screenshot.quality;
+        this.thumbnails = config.screenshot.thumbnails !== false;
+        this.thumbnailWidth = config.screenshot.thumbnailWidth || 120;
+        this.thumbnailHeight = config.screenshot.thumbnailHeight || 90;
         this.dockerMode = config.docker.enabled;
         this.chromeWsEndpoint = config.docker.chromeWsEndpoint;
         this.browser = null;
@@ -75,11 +78,25 @@ class ScreenshotAgent {
                 fullPage: false
             });
 
+            // Capture thumbnail if enabled
+            let thumbnailBuffer = null;
+            if (this.thumbnails) {
+                await page.setViewport({
+                    width: this.thumbnailWidth,
+                    height: this.thumbnailHeight
+                });
+                thumbnailBuffer = await page.screenshot({
+                    type: 'png',
+                    fullPage: false
+                });
+            }
+
             console.log(`[ScreenshotAgent] Captured screenshot for ${url} (${screenshotBuffer.length} bytes)`);
 
             return {
                 success: true,
                 buffer: screenshotBuffer,
+                thumbnail: thumbnailBuffer,
                 appId
             };
 

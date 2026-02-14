@@ -7,8 +7,17 @@ const config = require('../config.json');
  */
 class AIAgent {
     constructor() {
-        this.baseUrl = config.ollama.baseUrl;
-        this.model = config.ollama.model;
+        // Get the correct host for Docker
+        const isDocker = process.env.DOCKER_CONTAINER || false;
+        let baseUrl = config.ollama.baseUrl || 'http://localhost:11434';
+        
+        // Replace localhost with docker host if in container
+        if (isDocker && (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1'))) {
+            baseUrl = baseUrl.replace(/localhost|127\.0\.0\.1/g, 'host.docker.internal');
+        }
+        
+        this.baseUrl = baseUrl;
+        this.model = config.ollama.model || 'llama3.2';
         this.systemPrompt = `You are a helpful assistant that identifies local web applications.
         Based on the page title, headings, and content, identify what application this is.
         Return ONLY a JSON object with:

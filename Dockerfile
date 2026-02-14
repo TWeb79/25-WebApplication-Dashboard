@@ -12,6 +12,9 @@ RUN npm install --omit=dev --no-audit --no-fund
 # Copy app source
 COPY . .
 
+# Set Docker environment flag
+ENV DOCKER_CONTAINER=true
+
 # Expose port used by the server
 EXPOSE 3000
 

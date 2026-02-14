@@ -1,5 +1,24 @@
 const net = require('net');
+const http = require('http');
 const config = require('../config.json');
+
+// Get the target host from config or use default
+const getScanHost = () => {
+    // Check if we're in Docker and use host.docker.internal as fallback
+    const isDocker = process.env.DOCKER_CONTAINER || false;
+    const targetHost = config.targetHost || 'localhost';
+    
+    // If targetHost is explicitly set to a non-localhost value, use it
+    if (targetHost !== 'localhost' && targetHost !== '127.0.0.1') {
+        return targetHost;
+    }
+    
+    // Otherwise use docker host or localhost
+    if (isDocker) {
+        return 'host.docker.internal';
+    }
+    return '127.0.0.1';
+};
 
 /**
  * Port Scanner Agent
@@ -14,6 +33,9 @@ class PortScanner {
         this.discoveredPorts = [];
         // Determine dashboard port to exclude from scanning
         this.dashboardPort = config.dashboardPort === 'auto' ? 3000 : parseInt(config.dashboardPort, 10);
+        // Use correct host for scanning
+        this.scanHost = getScanHost();
+        console.log(`[PortScanner] Scanning host: ${this.scanHost}`);
     }
 
     /**
@@ -44,7 +66,7 @@ class PortScanner {
                 resolve({ port, status });
             });
 
-            socket.connect(port, '127.0.0.1');
+            socket.connect(port, this.scanHost);
         });
     }
 
@@ -57,7 +79,7 @@ class PortScanner {
         for (const protocol of protocols) {
             try {
                 const axios = require('axios');
-                const url = `${protocol}://127.0.0.1:${port}`;
+                const url = `${protocol}://${this.scanHost}:${port}`;
                 
                 const response = await axios.get(url, {
                     timeout: this.timeout,

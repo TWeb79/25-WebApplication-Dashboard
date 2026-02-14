@@ -9,6 +9,8 @@ class WebAppMonitor {
             category: 'all',
             status: 'all'
         };
+        this.autoRefresh = false;
+        this.autoRefreshTimer = null;
         this.init();
     }
 
@@ -17,7 +19,28 @@ class WebAppMonitor {
         this.connectWebSocket();
         // Apply persisted theme if available
         this.loadTheme();
+        // Load persisted auto-refresh setting
+        this.loadAutoRefresh();
         await this.checkOllamaStatus();
+        // Load apps on startup
+        await this.loadApps();
+    }
+
+    // Load auto-refresh setting from localStorage
+    loadAutoRefresh() {
+        try {
+            const autoRefresh = localStorage.getItem('autoRefresh') === 'true';
+            this.autoRefresh = autoRefresh;
+            const toggle = document.getElementById('auto-refresh-toggle');
+            if (toggle) {
+                toggle.checked = autoRefresh;
+            }
+            if (autoRefresh) {
+                this.autoRefreshTimer = setInterval(() => {
+                    this.loadApps();
+                }, 30000);
+            }
+        } catch (e) {}
     }
 
     // Load theme from localStorage and apply
@@ -57,23 +80,33 @@ class WebAppMonitor {
     }
 
     setupEventListeners() {
-        // Navigation
+        // Navigation - but exclude items with specific IDs that have their own handlers
         document.querySelectorAll('.nav-item').forEach(item => {
             item.addEventListener('click', (e) => {
+                // Skip items with dedicated click handlers
+                if (item.id === 'add-app-nav' || item.id === 'settings-nav') {
+                    return;
+                }
                 const view = item.dataset.view;
                 if (view) this.switchView(view);
             });
         });
 
-        // Add app nav
-        document.getElementById('add-app-nav').addEventListener('click', () => {
-            document.getElementById('add-app-modal').classList.add('active');
-        });
+        // Add app nav - uses modal instead of view
+        const addAppNav = document.getElementById('add-app-nav');
+        if (addAppNav) {
+            addAppNav.addEventListener('click', () => {
+                document.getElementById('add-app-modal').classList.add('active');
+            });
+        }
 
-        // Settings nav
-        document.getElementById('settings-nav').addEventListener('click', () => {
-            document.getElementById('settings-modal').classList.add('active');
-        });
+        // Settings nav - uses modal instead of view
+        const settingsNav = document.getElementById('settings-nav');
+        if (settingsNav) {
+            settingsNav.addEventListener('click', () => {
+                document.getElementById('settings-modal').classList.add('active');
+            });
+        }
 
         // Settings modal close
         document.getElementById('settings-modal-close').addEventListener('click', () => {
@@ -131,12 +164,60 @@ class WebAppMonitor {
             }
         });
 
+        document.getElementById('modal-screenshot-btn').addEventListener('click', () => {
+            if (this.selectedApp) {
+                this.updateSingleScreenshot(this.selectedApp.id);
+            }
+        });
+
         // Settings action buttons
         document.getElementById('theme-light-btn').addEventListener('click', () => this.setTheme('light'));
         document.getElementById('theme-dark-btn').addEventListener('click', () => this.setTheme('dark'));
         document.getElementById('theme-auto-btn').addEventListener('click', () => this.setTheme('auto'));
         document.getElementById('screenshot-refresh-btn').addEventListener('click', () => this.refreshScreenshots());
         document.getElementById('clear-data-btn').addEventListener('click', () => this.clearData());
+        
+        // Settings save button
+        const settingsSaveBtn = document.getElementById('settings-save-btn');
+        if (settingsSaveBtn) {
+            settingsSaveBtn.addEventListener('click', () => {
+                this.showToast('success', 'Settings saved');
+                this.closeModal('settings-modal');
+            });
+        }
+        
+        // Test Ollama connection
+        const testOllamaBtn = document.getElementById('test-ollama-btn');
+        if (testOllamaBtn) {
+            testOllamaBtn.addEventListener('click', async () => {
+                const urlInput = document.getElementById('ollama-url');
+                const baseUrl = urlInput?.value;
+                testOllamaBtn.disabled = true;
+                testOllamaBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+                
+                try {
+                    const response = await fetch('/api/ai/test', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ baseUrl })
+                    });
+                    const data = await response.json();
+                    
+                    if (data.success && data.available) {
+                        this.showToast('success', `Connected! Found ${data.models.length} models`);
+                        const statusText = document.getElementById('ollama-status-text');
+                        if (statusText) statusText.textContent = `Connected - ${data.models.length} models available`;
+                    } else {
+                        this.showToast('error', data.error || 'Connection failed');
+                    }
+                } catch (error) {
+                    this.showToast('error', 'Connection test failed');
+                }
+                
+                testOllamaBtn.disabled = false;
+                testOllamaBtn.innerHTML = '<i class="fas fa-plug"></i> Test Connection';
+            });
+        }
 
         // Auto-refresh toggle
         document.getElementById('auto-refresh-toggle').addEventListener('change', (e) => {
@@ -308,9 +389,11 @@ class WebAppMonitor {
     }
 
     createAppCard(app) {
-        const screenshotHtml = app.screenshot 
-            ? `<img src="${app.screenshot}" alt="${app.name}" class="app-screenshot" onerror="this.parentElement.innerHTML='<div class=\\'app-screenshot-placeholder\\'>🌐</div>'">`
-            : `<div class="app-screenshot-placeholder"><i class="fas fa-globe"></i></div>`;
+        const screenshotHtml = app.thumbnail 
+            ? `<img src="${app.thumbnail}" alt="${app.name}" class="app-screenshot" onerror="this.parentElement.innerHTML='<div class=\\'app-screenshot-placeholder\\'>🌐</div>'">`
+            : (app.screenshot 
+                ? `<img src="${app.screenshot}" alt="${app.name}" class="app-screenshot" onerror="this.parentElement.innerHTML='<div class=\\'app-screenshot-placeholder\\'>🌐</div>'">`
+                : `<div class="app-screenshot-placeholder"><i class="fas fa-globe"></i></div>`);
 
         const statusDot = app.isOnline ? 'online' : 'offline';
         const statusText = app.isOnline ? 'Online' : 'Offline';
@@ -480,6 +563,60 @@ class WebAppMonitor {
             if (!response.ok) throw new Error(data.error);
         } catch (error) {
             this.showToast('error', `Health check failed: ${error.message}`);
+        }
+    }
+
+    // Refresh screenshots for all apps
+    async refreshScreenshots() {
+        try {
+            this.showLoading('Updating screenshots...');
+            const response = await fetch('/api/screenshots/refresh', { method: 'POST' });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error);
+            this.showToast('success', 'Screenshots updated');
+            this.loadApps();
+        } catch (error) {
+            this.showToast('error', `Screenshot refresh failed: ${error.message}`);
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    // Update screenshot for a single app
+    async updateSingleScreenshot(appId) {
+        try {
+            this.showLoading('Updating screenshot...');
+            const response = await fetch(`/api/apps/${appId}/screenshot`, { method: 'POST' });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Failed to update screenshot');
+            this.showToast('success', 'Screenshot updated');
+            this.loadApps();
+            this.closeModal();
+        } catch (error) {
+            this.showToast('error', `Screenshot update failed: ${error.message}`);
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    // Set auto refresh interval
+    setAutoRefresh(enabled) {
+        this.autoRefresh = enabled;
+        try {
+            localStorage.setItem('autoRefresh', enabled);
+        } catch (e) {}
+        
+        if (enabled) {
+            if (!this.autoRefreshTimer) {
+                this.autoRefreshTimer = setInterval(() => {
+                    this.loadApps();
+                }, 30000); // 30 seconds
+            }
+        } else {
+            if (this.autoRefreshTimer) {
+                clearInterval(this.autoRefreshTimer);
+                this.autoRefreshTimer = null;
+            }
         }
     }
 
