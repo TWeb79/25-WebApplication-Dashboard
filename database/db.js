@@ -158,11 +158,20 @@ const database = {
     // Get dashboard stats
     getStats: () => {
         const apps = getAllApps.all();
+        const onlineApps = apps.filter(a => a.status === 'online').length;
+        const offlineApps = apps.filter(a => a.status === 'offline').length;
+        const lastChecked = apps.reduce((latest, app) => {
+            if (app.last_checked_at && new Date(app.last_checked_at) > new Date(latest)) {
+                return app.last_checked_at;
+            }
+            return latest;
+        }, null);
+        
         return {
-            total: apps.length,
-            online: apps.filter(a => a.status === 'online').length,
-            offline: apps.filter(a => a.status === 'offline').length,
-            unknown: apps.filter(a => a.status === 'unknown').length
+            totalApps: apps.length,
+            onlineApps: onlineApps,
+            offlineApps: offlineApps,
+            lastScan: lastChecked
         };
     }
 };

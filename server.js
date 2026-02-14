@@ -1,6 +1,6 @@
 const express = require('express');
 const http = require('http');
-const { WebSocketServer } = require('ws');
+const { Server } = require('socket.io');
 const config = require('./config.json');
 const database = require('./database/db');
 
@@ -12,6 +12,7 @@ const AIAgent = require('./agents/aiAgent');
 
 const app = express();
 const server = http.createServer(app);
+const io = new Server(server);
 
 // Middleware
 app.use(express.json());
@@ -23,27 +24,17 @@ const healthChecker = new HealthChecker();
 const screenshotAgent = new ScreenshotAgent();
 const aiAgent = new AIAgent();
 
-// WebSocket for real-time updates
-const wss = new WebSocketServer({ server });
-const clients = new Set();
-
-wss.on('connection', (ws) => {
-    clients.add(ws);
-    console.log('[Server] WebSocket client connected');
+// WebSocket for real-time updates (Socket.IO)
+io.on('connection', (socket) => {
+    console.log('[Server] Socket.IO client connected');
     
-    ws.on('close', () => {
-        clients.delete(ws);
-        console.log('[Server] WebSocket client disconnected');
+    socket.on('disconnect', () => {
+        console.log('[Server] Socket.IO client disconnected');
     });
 });
 
 function broadcast(data) {
-    const message = JSON.stringify(data);
-    clients.forEach(client => {
-        if (client.readyState === 1) { // WebSocket.OPEN
-            client.send(message);
-        }
-    });
+    io.emit('message', data);
 }
 
 // ==================== API ENDPOINTS ====================
@@ -53,9 +44,12 @@ app.get('/api/apps', (req, res) => {
     const apps = database.getAllApps();
     const stats = database.getStats();
     
-    // Convert screenshots to base64 data URLs
+    // Convert screenshots to base64 data URLs and add computed fields
     const appsWithScreenshots = apps.map(app => ({
         ...app,
+        isOnline: app.status === 'online',
+        lastSeen: app.last_checked_at,
+        createdAt: app.discovered_at,
         screenshot: app.screenshot 
             ? `data:image/png;base64,${app.screenshot.toString('base64')}` 
             : null
@@ -75,6 +69,9 @@ app.get('/api/apps/:id', (req, res) => {
     
     res.json({
         ...app,
+        isOnline: app.status === 'online',
+        lastSeen: app.last_checked_at,
+        createdAt: app.discovered_at,
         screenshot: app.screenshot 
             ? `data:image/png;base64,${app.screenshot.toString('base64')}` 
             : null,

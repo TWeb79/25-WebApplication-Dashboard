@@ -154,26 +154,23 @@ class WebAppMonitor {
     }
 
     connectWebSocket() {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const ws = new WebSocket(`${protocol}//${window.location.host}`);
+        this.socket = io();
+        
+        this.socket.on('connect', () => {
+            console.log('[Socket.IO] Connected');
+        });
 
-        ws.onopen = () => {
-            console.log('[WebSocket] Connected');
-        };
-
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
+        this.socket.on('message', (data) => {
             this.handleWebSocketMessage(data);
-        };
+        });
 
-        ws.onclose = () => {
-            console.log('[WebSocket] Disconnected, reconnecting...');
-            setTimeout(() => this.connectWebSocket(), 3000);
-        };
+        this.socket.on('disconnect', () => {
+            console.log('[Socket.IO] Disconnected, reconnecting...');
+        });
 
-        ws.onerror = (error) => {
-            console.error('[WebSocket] Error:', error);
-        };
+        this.socket.on('connect_error', (error) => {
+            console.error('[Socket.IO] Error:', error);
+        });
     }
 
     handleWebSocketMessage(data) {

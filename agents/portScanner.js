@@ -12,6 +12,8 @@ class PortScanner {
         this.concurrency = config.scanning.concurrency;
         this.timeout = config.scanning.timeoutMs;
         this.discoveredPorts = [];
+        // Determine dashboard port to exclude from scanning
+        this.dashboardPort = config.dashboardPort === 'auto' ? 3000 : parseInt(config.dashboardPort, 10);
     }
 
     /**
@@ -94,8 +96,11 @@ class PortScanner {
      * Scan a batch of ports concurrently
      */
     async scanBatch(ports) {
+        // Filter out the dashboard port
+        const portsToScan = ports.filter(port => port !== this.dashboardPort);
+        
         const results = await Promise.all(
-            ports.map(port => this.checkPort(port))
+            portsToScan.map(port => this.checkPort(port))
         );
 
         // Filter only open ports and check for HTTP servers
@@ -121,7 +126,10 @@ class PortScanner {
         
         const allPorts = [];
         for (let port = this.portStart; port <= this.portEnd; port++) {
-            allPorts.push(port);
+            // Skip the dashboard port
+            if (port !== this.dashboardPort) {
+                allPorts.push(port);
+            }
         }
 
         // Split into batches for concurrency control
@@ -163,10 +171,13 @@ class PortScanner {
             11000, 12000, 13000, 14000, 15000, 16000, 17000, 18000
         ];
 
-        console.log(`[PortScanner] Quick scan of ${commonPorts.length} common ports...`);
+        // Filter out the dashboard port to avoid scanning itself
+        const portsToScan = commonPorts.filter(port => port !== this.dashboardPort);
+
+        console.log(`[PortScanner] Quick scan of ${portsToScan.length} common ports...`);
         const startTime = Date.now();
         
-        const servers = await this.scanBatch(commonPorts);
+        const servers = await this.scanBatch(portsToScan);
         
         console.log(`[PortScanner] Quick scan complete. Found ${servers.length} web servers in ${Date.now() - startTime}ms`);
         

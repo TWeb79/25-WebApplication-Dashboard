@@ -5,7 +5,9 @@ WORKDIR /usr/src/app
 
 # Install app dependencies
 COPY package*.json ./
-RUN npm ci --only=production
+# Use npm install rather than npm ci because the lockfile may be out of sync
+# Install only production dependencies to keep image small
+RUN npm install --omit=dev --no-audit --no-fund
 
 # Copy app source
 COPY . .
