@@ -207,6 +207,18 @@ class WebAppMonitor {
                         this.showToast('success', `Connected! Found ${data.models.length} models`);
                         const statusText = document.getElementById('ollama-status-text');
                         if (statusText) statusText.textContent = `Connected - ${data.models.length} models available`;
+                        
+                        // Populate model dropdown
+                        const modelSelect = document.getElementById('ollama-model');
+                        if (modelSelect && data.models) {
+                            modelSelect.innerHTML = '';
+                            data.models.forEach(model => {
+                                const option = document.createElement('option');
+                                option.value = model.name;
+                                option.textContent = model.name;
+                                modelSelect.appendChild(option);
+                            });
+                        }
                     } else {
                         this.showToast('error', data.error || 'Connection failed');
                     }
@@ -216,6 +228,32 @@ class WebAppMonitor {
                 
                 testOllamaBtn.disabled = false;
                 testOllamaBtn.innerHTML = '<i class="fas fa-plug"></i> Test Connection';
+            });
+        }
+        
+        // Ollama model selection
+        const modelSelect = document.getElementById('ollama-model');
+        if (modelSelect) {
+            modelSelect.addEventListener('change', async () => {
+                const model = modelSelect.value;
+                if (!model) return;
+                
+                try {
+                    const response = await fetch('/api/ai/model', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ model })
+                    });
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        this.showToast('success', `Model set to: ${model}`);
+                    } else {
+                        this.showToast('error', data.error || 'Failed to set model');
+                    }
+                } catch (error) {
+                    this.showToast('error', 'Failed to set model');
+                }
             });
         }
 
@@ -363,8 +401,9 @@ class WebAppMonitor {
                 app.url.toLowerCase().includes(this.filter.search);
             
             let matchesStatus = true;
-            if (this.filter.status === 'online') matchesStatus = app.isOnline;
-            if (this.filter.status === 'offline') matchesStatus = !app.isOnline;
+            if (this.filter.status === 'online') matchesStatus = app.status === 'online';
+            if (this.filter.status === 'offline') matchesStatus = app.status === 'offline';
+            if (this.filter.status === 'unknown') matchesStatus = app.status === 'unknown';
             
             return matchesSearch && matchesStatus;
         });
@@ -694,14 +733,39 @@ class WebAppMonitor {
             if (data.available) {
                 statusEl.classList.add('available');
                 statusEl.classList.remove('unavailable');
+                
+                // Populate model dropdown
+                const modelSelect = document.getElementById('ollama-model');
+                if (modelSelect && data.models) {
+                    modelSelect.innerHTML = '';
+                    data.models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.name;
+                        option.textContent = model.name;
+                        if (model.name === data.model) {
+                            option.selected = true;
+                        }
+                        modelSelect.appendChild(option);
+                    });
+                }
             } else {
                 statusEl.classList.add('unavailable');
                 statusEl.classList.remove('available');
+                
+                const modelSelect = document.getElementById('ollama-model');
+                if (modelSelect) {
+                    modelSelect.innerHTML = '<option value="">No models available</option>';
+                }
             }
         } catch (error) {
             const statusEl = document.getElementById('ollama-status');
             statusEl.classList.add('unavailable');
             statusEl.classList.remove('available');
+            
+            const modelSelect = document.getElementById('ollama-model');
+            if (modelSelect) {
+                modelSelect.innerHTML = '<option value="">Error loading models</option>';
+            }
         }
     }
 

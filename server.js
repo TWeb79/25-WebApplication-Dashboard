@@ -250,6 +250,44 @@ app.post('/api/screenshots/update', async (req, res) => {
     }
 });
 
+// Refresh screenshots (alias for /api/screenshots/update)
+app.post('/api/screenshots/refresh', async (req, res) => {
+    console.log('[Server] Refreshing screenshots...');
+    broadcast({ type: 'screenshot_update_start' });
+    
+    try {
+        const apps = database.getOnlineApps();
+        
+        for (const app of apps) {
+            console.log(`[Server] Capturing screenshot for ${app.url}...`);
+            const result = await screenshotAgent.captureScreenshot(app.url, app.id);
+            
+            if (result.success) {
+                database.updateScreenshot(app.id, result.buffer, result.thumbnail);
+                broadcast({ 
+                    type: 'screenshot_updated', 
+                    appId: app.id,
+                    success: true 
+                });
+            } else {
+                broadcast({ 
+                    type: 'screenshot_updated', 
+                    appId: app.id,
+                    success: false,
+                    error: result.error
+                });
+            }
+        }
+        
+        broadcast({ type: 'screenshot_update_complete' });
+        res.json({ success: true });
+        
+    } catch (error) {
+        console.error('[Server] Screenshot refresh error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Update screenshot for a single app
 app.post('/api/apps/:id/screenshot', async (req, res) => {
     const { id } = req.params;
@@ -360,6 +398,25 @@ app.post('/api/ai/test', async (req, res) => {
             success: false,
             error: error.message 
         });
+    }
+});
+
+// Set Ollama model
+app.post('/api/ai/model', async (req, res) => {
+    try {
+        const { model } = req.body;
+        if (!model) {
+            return res.status(400).json({ success: false, error: 'Model name is required' });
+        }
+        
+        // Update the model in the aiAgent
+        aiAgent.model = model;
+        console.log(`[Server] Ollama model set to: ${model}`);
+        
+        res.json({ success: true, model: aiAgent.model });
+    } catch (error) {
+        console.error('[Server] Error setting model:', error);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 

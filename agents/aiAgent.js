@@ -17,7 +17,7 @@ class AIAgent {
         }
         
         this.baseUrl = baseUrl;
-        this.model = config.ollama.model || 'llama3.2';
+        this.model = config.ollama.model || 'qwen2.5:7b';
         this.systemPrompt = `You are a helpful assistant that identifies local web applications.
         Based on the page title, headings, and content, identify what application this is.
         Return ONLY a JSON object with:

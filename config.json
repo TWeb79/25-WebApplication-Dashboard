@@ -6,7 +6,7 @@
   "targetHost": "localhost",
   "scanIntervalMs": 60000,
   "ollama": {
-    "model": "minimax-m2.1:cloud",
+    "model": "qwen2.5:7b",
     "baseUrl": "http://localhost:11434"
   },
   "dashboardPort": "auto",
