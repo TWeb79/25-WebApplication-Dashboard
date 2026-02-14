@@ -84,7 +84,11 @@ app.get('/api/apps/:id', (req, res) => {
 
 // Delete app
 app.delete('/api/apps/:id', (req, res) => {
-    database.removeApp(req.params.id);
+    const appId = parseInt(req.params.id, 10);
+    if (isNaN(appId)) {
+        return res.status(400).json({ error: 'Invalid app ID' });
+    }
+    database.removeApp(appId);
     res.json({ success: true });
 });
 

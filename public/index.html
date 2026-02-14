@@ -3,46 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Local WebApp Monitor</title>
+    <title>WebApp Monitor - Local Dashboard</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
     <div class="app-container">
         <!-- Sidebar -->
         <aside class="sidebar">
-            <div class="logo">
-                <span class="logo-icon">🔍</span>
-                <h1>WebApp Monitor</h1>
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <i class="fas fa-radar"></i>
+                    </div>
+                    <div class="logo-text">
+                        WebApp Monitor
+                        <div class="logo-subtitle">Local Discovery</div>
+                    </div>
+                </div>
             </div>
             
-            <nav class="nav-menu">
-                <a href="#" class="nav-item active" data-view="dashboard">
-                    <span class="nav-icon">📊</span>
-                    Dashboard
-                </a>
-                <a href="#" class="nav-item" data-view="all-apps">
-                    <span class="nav-icon">🌐</span>
-                    All Applications
-                </a>
-                <a href="#" class="nav-item" data-view="online">
-                    <span class="nav-icon">✅</span>
-                    Online <span class="badge" id="online-count">0</span>
-                </a>
-                <a href="#" class="nav-item" data-view="offline">
-                    <span class="nav-icon">❌</span>
-                    Offline <span class="badge" id="offline-count">0</span>
-                </a>
-                <a href="#" class="nav-item" data-view="settings">
-                    <span class="nav-icon">⚙️</span>
-                    Settings
-                </a>
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Overview</div>
+                    <ul class="nav-list">
+                        <li class="nav-item active" data-view="dashboard">
+                            <span class="nav-icon"><i class="fas fa-th-large"></i></span>
+                            Dashboard
+                        </li>
+                        <li class="nav-item" data-view="all-apps">
+                            <span class="nav-icon"><i class="fas fa-globe"></i></span>
+                            All Applications
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="nav-section">
+                    <div class="nav-section-title">Status</div>
+                    <ul class="nav-list">
+                        <li class="nav-item" data-view="online">
+                            <span class="nav-icon"><i class="fas fa-check-circle"></i></span>
+                            Online
+                            <span class="nav-badge" id="online-count">0</span>
+                        </li>
+                        <li class="nav-item" data-view="offline">
+                            <span class="nav-icon"><i class="fas fa-times-circle"></i></span>
+                            Offline
+                            <span class="nav-badge" id="offline-count">0</span>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="nav-section">
+                    <div class="nav-section-title">Actions</div>
+                    <ul class="nav-list">
+                        <li class="nav-item" id="add-app-nav">
+                            <span class="nav-icon"><i class="fas fa-plus"></i></span>
+                            Add Application
+                        </li>
+                        <li class="nav-item" data-view="settings">
+                            <span class="nav-icon"><i class="fas fa-cog"></i></span>
+                            Settings
+                        </li>
+                    </ul>
+                </div>
             </nav>
             
             <div class="sidebar-footer">
                 <div class="ollama-status" id="ollama-status">
-                    <span class="status-dot"></span>
-                    <span class="status-text">AI: Checking...</span>
+                    <span class="status-indicator-sm"></span>
+                    <span class="status-label">AI Service</span>
                 </div>
             </div>
         </aside>
@@ -50,95 +81,106 @@
         <!-- Main Content -->
         <main class="main-content">
             <!-- Header -->
-            <header class="header">
+            <header class="page-header">
                 <div class="header-left">
-                    <h2 id="page-title">Dashboard</h2>
-                    <span class="subtitle" id="page-subtitle">Overview of your local web applications</span>
+                    <h1 class="page-title" id="page-title">Dashboard</h1>
+                    <span class="page-subtitle" id="page-subtitle">Overview of your local web applications</span>
                 </div>
                 <div class="header-actions">
-                    <button class="btn btn-secondary" id="health-check-btn">
-                        <span>🔄</span> Health Check
+                    <div class="search-box">
+                        <span class="search-icon"><i class="fas fa-search"></i></span>
+                        <input type="text" class="search-input" id="search-input" placeholder="Search applications...">
+                    </div>
+                    <button class="btn btn-secondary header-btn" id="health-check-btn">
+                        <i class="fas fa-sync-alt"></i> Health Check
                     </button>
-                    <button class="btn btn-primary" id="quick-scan-btn">
-                        <span>⚡</span> Quick Scan
+                    <button class="btn btn-primary header-btn" id="quick-scan-btn">
+                        <i class="fas fa-bolt"></i> Quick Scan
                     </button>
-                    <button class="btn btn-accent" id="full-scan-btn">
-                        <span>🔍</span> Full Scan
+                    <button class="btn btn-accent header-btn" id="full-scan-btn">
+                        <i class="fas fa-search-plus"></i> Full Scan
                     </button>
                 </div>
             </header>
             
-            <!-- Stats Cards -->
-            <div class="stats-grid" id="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-icon total">🌐</div>
-                    <div class="stat-info">
-                        <span class="stat-value" id="total-apps">0</span>
-                        <span class="stat-label">Total Apps</span>
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- Stats Cards -->
+                <div class="stats-row" id="stats-row">
+                    <div class="stat-card">
+                        <div class="stat-icon-wrapper primary">
+                            <i class="fas fa-globe"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="total-apps">0</div>
+                            <div class="stat-label">Total Applications</div>
+                        </div>
                     </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon online">✅</div>
-                    <div class="stat-info">
-                        <span class="stat-value" id="stat-online">0</span>
-                        <span class="stat-label">Online</span>
+                    <div class="stat-card">
+                        <div class="stat-icon-wrapper success">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-online">0</div>
+                            <div class="stat-label">Online</div>
+                        </div>
                     </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon offline">❌</div>
-                    <div class="stat-info">
-                        <span class="stat-value" id="stat-offline">0</span>
-                        <span class="stat-label">Offline</span>
+                    <div class="stat-card">
+                        <div class="stat-icon-wrapper danger">
+                            <i class="fas fa-times-circle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="stat-offline">0</div>
+                            <div class="stat-label">Offline</div>
+                        </div>
                     </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon last-scan">⏱️</div>
-                    <div class="stat-info">
-                        <span class="stat-value" id="last-scan">Never</span>
-                        <span class="stat-label">Last Scan</span>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Loading Overlay -->
-            <div class="loading-overlay" id="loading-overlay">
-                <div class="loading-spinner"></div>
-                <p id="loading-text">Scanning...</p>
-            </div>
-            
-            <!-- Apps Grid -->
-            <div class="apps-section">
-                <div class="section-header">
-                    <h3 id="section-title">All Applications</h3>
-                    <div class="filter-controls">
-                        <input type="text" class="search-input" id="search-input" placeholder="Search apps...">
-                        <select class="filter-select" id="category-filter">
-                            <option value="all">All Categories</option>
-                            <option value="Development">Development</option>
-                            <option value="Database">Database</option>
-                            <option value="API">API</option>
-                            <option value="CI/CD">CI/CD</option>
-                            <option value="Monitoring">Monitoring</option>
-                            <option value="AI/ML">AI/ML</option>
-                            <option value="Other">Other</option>
-                        </select>
+                    <div class="stat-card">
+                        <div class="stat-icon-wrapper warning">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-value" id="last-scan">Never</div>
+                            <div class="stat-label">Last Scan</div>
+                        </div>
                     </div>
                 </div>
                 
+                <!-- Filter Tabs -->
+                <div class="section-header">
+                    <h2 class="section-title" id="section-title">All Applications</h2>
+                    <div class="section-actions">
+                        <button class="filter-btn active" data-filter="all">All</button>
+                        <button class="filter-btn" data-filter="online">Online</button>
+                        <button class="filter-btn" data-filter="offline">Offline</button>
+                    </div>
+                </div>
+                
+                <!-- Loading Overlay -->
+                <div class="loading-overlay" id="loading-overlay">
+                    <div class="loading-spinner"></div>
+                    <p id="loading-text">Scanning...</p>
+                    <div class="progress-bar" id="scan-progress">
+                        <div class="progress-bar-fill" id="scan-progress-fill"></div>
+                    </div>
+                </div>
+                
+                <!-- Apps Grid -->
                 <div class="apps-grid" id="apps-grid">
                     <!-- Apps will be inserted here -->
                 </div>
                 
+                <!-- Empty State -->
                 <div class="empty-state" id="empty-state">
-                    <div class="empty-icon">🔍</div>
-                    <h3>No applications found</h3>
-                    <p>Run a scan to discover web applications on your machine</p>
-                    <button class="btn btn-primary" id="empty-scan-btn">Start Quick Scan</button>
+                    <div class="empty-icon">
+                        <i class="fas fa-spider"></i>
+                    </div>
+                    <h3 class="empty-title">No applications found</h3>
+                    <p class="empty-description">Run a scan to discover web applications on your machine</p>
+                    <button class="btn btn-primary" id="empty-scan-btn">
+                        <i class="fas fa-bolt"></i> Start Quick Scan
+                    </button>
                 </div>
             </div>
-            
-            <!-- Toast Notifications -->
-            <div class="toast-container" id="toast-container"></div>
         </main>
     </div>
     
@@ -146,11 +188,24 @@
     <div class="modal-overlay" id="app-modal">
         <div class="modal">
             <div class="modal-header">
-                <h3 id="modal-title">Application Details</h3>
-                <button class="modal-close" id="modal-close">&times;</button>
+                <h3 class="modal-title" id="modal-title">Application Details</h3>
+                <button class="modal-close" id="modal-close">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
             <div class="modal-body" id="modal-body">
                 <!-- App details will be inserted here -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="modal-reidentify-btn">
+                    <i class="fas fa-magic"></i> Re-identify with AI
+                </button>
+                <button class="btn btn-danger" id="modal-delete-btn">
+                    <i class="fas fa-trash"></i> Delete
+                </button>
+                <button class="btn btn-primary" id="modal-open-btn">
+                    <i class="fas fa-external-link-alt"></i> Open Application
+                </button>
             </div>
         </div>
     </div>
@@ -159,23 +214,25 @@
     <div class="modal-overlay" id="add-app-modal">
         <div class="modal">
             <div class="modal-header">
-                <h3>Add Application</h3>
-                <button class="modal-close" id="add-app-modal-close">&times;</button>
+                <h3 class="modal-title">Add Application</h3>
+                <button class="modal-close" id="add-app-modal-close">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
             <div class="modal-body">
                 <form id="add-app-form">
                     <div class="form-group">
-                        <label for="app-url">URL</label>
-                        <input type="url" id="app-url" placeholder="http://localhost:3000" required>
+                        <label class="form-label" for="app-url">URL *</label>
+                        <input type="url" class="form-input" id="app-url" placeholder="http://localhost:3000" required>
                     </div>
                     <div class="form-group">
-                        <label for="app-name">Name (optional)</label>
-                        <input type="text" id="app-name" placeholder="My App">
+                        <label class="form-label" for="app-name">Name (optional)</label>
+                        <input type="text" class="form-input" id="app-name" placeholder="My Application">
                     </div>
                     <div class="form-group">
-                        <label for="app-category">Category (optional)</label>
-                        <select id="app-category">
-                            <option value="Unknown">Select...</option>
+                        <label class="form-label" for="app-category">Category (optional)</label>
+                        <select class="form-select" id="app-category">
+                            <option value="Unknown">Auto-detect</option>
                             <option value="Development">Development</option>
                             <option value="Database">Database</option>
                             <option value="API">API</option>
@@ -185,12 +242,101 @@
                             <option value="Other">Other</option>
                         </select>
                     </div>
-                    <button type="submit" class="btn btn-primary">Add Application</button>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                        <i class="fas fa-plus"></i> Add Application
+                    </button>
                 </form>
             </div>
         </div>
     </div>
     
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settings-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Settings</h3>
+                <button class="modal-close" id="settings-modal-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h4 class="settings-section-title">Appearance</h4>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-label">Theme</div>
+                            <div class="setting-description">Choose between light and dark mode</div>
+                        </div>
+                        <div class="theme-toggle">
+                            <button class="theme-btn" id="theme-light" title="Light Mode">
+                                <i class="fas fa-sun"></i>
+                            </button>
+                            <button class="theme-btn" id="theme-dark" title="Dark Mode">
+                                <i class="fas fa-moon"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h4 class="settings-section-title">Scanning</h4>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-label">Auto Health Check</div>
+                            <div class="setting-description">Automatically check app status periodically</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="auto-health-check" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-label">Update Screenshots</div>
+                            <div class="setting-description">Capture screenshots during scans</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="update-screenshots" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h4 class="settings-section-title">AI Service</h4>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-label">Ollama Status</div>
+                            <div class="setting-description" id="ollama-status-text">Checking...</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h4 class="settings-section-title">Danger Zone</h4>
+                    <div class="setting-item danger">
+                        <div class="setting-info">
+                            <div class="setting-label">Clear All Data</div>
+                            <div class="setting-description">Delete all discovered applications and history</div>
+                        </div>
+                        <button class="btn btn-danger" id="clear-data-btn">
+                            <i class="fas fa-trash-alt"></i> Clear All
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="settings-save-btn">
+                    <i class="fas fa-save"></i> Save Settings
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+    
+    <script src="/socket.io/socket.io.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

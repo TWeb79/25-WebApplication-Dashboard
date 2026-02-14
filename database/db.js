@@ -62,6 +62,7 @@ const updateScreenshot = db.prepare(`
     UPDATE apps SET screenshot = ?, screenshot_updated_at = CURRENT_TIMESTAMP WHERE id = ?
 `);
 
+const deleteScanHistory = db.prepare(`DELETE FROM scan_history WHERE app_id = ?`);
 const deleteApp = db.prepare(`DELETE FROM apps WHERE id = ?`);
 const getAppById = db.prepare(`SELECT * FROM apps WHERE id = ?`);
 const getAppByUrl = db.prepare(`SELECT * FROM apps WHERE url = ?`);
@@ -121,8 +122,11 @@ const database = {
         return app?.screenshot;
     },
 
-    // Remove app
+    // Remove app and related scan history
     removeApp: (id) => {
+        // First delete related scan history records
+        deleteScanHistory.run(id);
+        // Then delete the app
         deleteApp.run(id);
     },
 

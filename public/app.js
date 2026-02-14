@@ -15,18 +15,69 @@ class WebAppMonitor {
     async init() {
         this.setupEventListeners();
         this.connectWebSocket();
-        await this.loadApps();
+        // Apply persisted theme if available
+        this.loadTheme();
         await this.checkOllamaStatus();
+    }
+
+    // Load theme from localStorage and apply
+    loadTheme() {
+        const theme = localStorage.getItem('theme') || 'light';
+        this.setTheme(theme);
+    }
+
+    // Set theme and update UI
+    setTheme(theme) {
+        this.theme = theme;
+        try {
+            localStorage.setItem('theme', theme);
+        } catch (e) {
+            // ignore storage errors
+        }
+        document.body.classList.remove('light', 'dark', 'auto');
+        document.body.classList.add(theme);
+        // Update active button
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.dataset && btn.dataset.theme === theme) {
+                btn.classList.add('active');
+            }
+        });
+    }
+
+    // Clear local storage data
+    clearData() {
+        try {
+            localStorage.clear();
+        } catch (e) {}
+        // optionally inform backend or reset DB - for now just reload
+        if (confirm('Clear local settings and reload the dashboard?')) {
+            location.reload();
+        }
     }
 
     setupEventListeners() {
         // Navigation
         document.querySelectorAll('.nav-item').forEach(item => {
             item.addEventListener('click', (e) => {
-                e.preventDefault();
                 const view = item.dataset.view;
-                this.switchView(view);
+                if (view) this.switchView(view);
             });
+        });
+
+        // Add app nav
+        document.getElementById('add-app-nav').addEventListener('click', () => {
+            document.getElementById('add-app-modal').classList.add('active');
+        });
+
+        // Settings nav
+        document.getElementById('settings-nav').addEventListener('click', () => {
+            document.getElementById('settings-modal').classList.add('active');
+        });
+
+        // Settings modal close
+        document.getElementById('settings-modal-close').addEventListener('click', () => {
+            this.closeModal('settings-modal');
         });
 
         // Scan buttons
@@ -35,24 +86,61 @@ class WebAppMonitor {
         document.getElementById('health-check-btn').addEventListener('click', () => this.runHealthCheck());
         document.getElementById('empty-scan-btn').addEventListener('click', () => this.startQuickScan());
 
-        // Filters
+        // Search
         document.getElementById('search-input').addEventListener('input', (e) => {
             this.filter.search = e.target.value.toLowerCase();
             this.renderApps();
         });
 
-        document.getElementById('category-filter').addEventListener('change', (e) => {
-            this.filter.category = e.target.value;
-            this.renderApps();
+        // Filter buttons
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this.filter.status = btn.dataset.filter;
+                this.renderApps();
+            });
         });
 
-        // Modals
+        // Modal close buttons
         document.getElementById('modal-close').addEventListener('click', () => this.closeModal('app-modal'));
         document.getElementById('add-app-modal-close').addEventListener('click', () => this.closeModal('add-app-modal'));
-        
+
+        // Add app form
         document.getElementById('add-app-form').addEventListener('submit', (e) => {
             e.preventDefault();
             this.addApp();
+        });
+
+        // Modal action buttons
+        document.getElementById('modal-open-btn').addEventListener('click', () => {
+            if (this.selectedApp) {
+                window.open(this.selectedApp.url, '_blank');
+            }
+        });
+
+        document.getElementById('modal-delete-btn').addEventListener('click', () => {
+            if (this.selectedApp) {
+                this.deleteApp(this.selectedApp.id);
+            }
+        });
+
+        document.getElementById('modal-reidentify-btn').addEventListener('click', () => {
+            if (this.selectedApp) {
+                this.reidentifyApp(this.selectedApp.id);
+            }
+        });
+
+        // Settings action buttons
+        document.getElementById('theme-light-btn').addEventListener('click', () => this.setTheme('light'));
+        document.getElementById('theme-dark-btn').addEventListener('click', () => this.setTheme('dark'));
+        document.getElementById('theme-auto-btn').addEventListener('click', () => this.setTheme('auto'));
+        document.getElementById('screenshot-refresh-btn').addEventListener('click', () => this.refreshScreenshots());
+        document.getElementById('clear-data-btn').addEventListener('click', () => this.clearData());
+
+        // Auto-refresh toggle
+        document.getElementById('auto-refresh-toggle').addEventListener('change', (e) => {
+            this.setAutoRefresh(e.target.checked);
         });
 
         // Close modal on overlay click
@@ -196,14 +284,11 @@ class WebAppMonitor {
                 app.name.toLowerCase().includes(this.filter.search) ||
                 app.url.toLowerCase().includes(this.filter.search);
             
-            const matchesCategory = this.filter.category === 'all' || 
-                app.category === this.filter.category;
-            
             let matchesStatus = true;
-            if (this.currentView === 'online') matchesStatus = app.isOnline;
-            if (this.currentView === 'offline') matchesStatus = !app.isOnline;
+            if (this.filter.status === 'online') matchesStatus = app.isOnline;
+            if (this.filter.status === 'offline') matchesStatus = !app.isOnline;
             
-            return matchesSearch && matchesCategory && matchesStatus;
+            return matchesSearch && matchesStatus;
         });
 
         if (filteredApps.length === 0) {
@@ -227,30 +312,42 @@ class WebAppMonitor {
 
     createAppCard(app) {
         const screenshotHtml = app.screenshot 
-            ? `<img src="${app.screenshot}" alt="${app.name}" class="app-screenshot">`
-            : `<div class="app-screenshot-placeholder">🌐</div>`;
+            ? `<img src="${app.screenshot}" alt="${app.name}" class="app-screenshot" onerror="this.parentElement.innerHTML='<div class=\\'app-screenshot-placeholder\\'>🌐</div>'">`
+            : `<div class="app-screenshot-placeholder"><i class="fas fa-globe"></i></div>`;
 
+        const statusDot = app.isOnline ? 'online' : 'offline';
+        const statusText = app.isOnline ? 'Online' : 'Offline';
+        
         return `
-            <div class="app-card ${app.isOnline ? 'online' : 'offline'}" data-app-id="${app.id}">
-                ${screenshotHtml}
-                <div class="app-content">
-                    <div class="app-header">
-                        <div>
-                            <div class="app-name">${this.escapeHtml(app.name)}</div>
-                            <span class="app-category category-${app.category}">${app.category}</span>
-                        </div>
+            <div class="app-card ${app.isOnline ? '' : 'offline'}" data-app-id="${app.id}">
+                <div class="app-card-header">
+                    ${screenshotHtml}
+                    <div class="app-status-badge">
+                        <span class="status-dot ${statusDot}"></span>
+                        ${statusText}
+                    </div>
+                    <span class="category-badge">${app.category}</span>
+                </div>
+                <div class="app-card-body">
+                    <div class="app-card-title">
+                        <i class="fas fa-cube"></i>
+                        ${this.escapeHtml(app.name)}
                     </div>
                     <div class="app-url">
-                        <a href="${app.url}" target="_blank" onclick="event.stopPropagation()">${this.escapeHtml(app.url)}</a>
+                        <a href="${app.url}" target="_blank" onclick="event.stopPropagation()">
+                            <i class="fas fa-external-link-alt"></i>
+                            ${this.escapeHtml(app.url)}
+                        </a>
                     </div>
-                    <div class="app-status">
-                        <span class="status-indicator ${app.isOnline ? 'online' : 'offline'}"></span>
-                        <span>${app.isOnline ? 'Online' : 'Offline'}</span>
-                        ${app.responseTime ? `<span style="color: var(--text-muted)">· ${app.responseTime}ms</span>` : ''}
-                    </div>
-                    <div class="app-meta">
-                        <span>Port: ${app.port}</span>
-                        <span>${app.lastSeen ? this.formatTimeAgo(new Date(app.lastSeen)) : 'Never'}</span>
+                    <div class="app-meta-row">
+                        <div class="app-response-time">
+                            <i class="fas fa-clock"></i>
+                            ${app.responseTime ? app.responseTime + 'ms' : 'N/A'}
+                        </div>
+                        <div class="app-last-seen">
+                            <i class="far fa-clock"></i>
+                            ${app.lastSeen ? this.formatTimeAgo(new Date(app.lastSeen)) : 'Never'}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -261,6 +358,7 @@ class WebAppMonitor {
         try {
             const response = await fetch(`/api/apps/${appId}`);
             const app = await response.json();
+            this.selectedApp = app;
             
             const modalTitle = document.getElementById('modal-title');
             const modalBody = document.getElementById('modal-body');
@@ -268,48 +366,43 @@ class WebAppMonitor {
             modalTitle.textContent = app.name;
             
             const screenshotHtml = app.screenshot 
-                ? `<img src="${app.screenshot}" alt="${app.name}" class="detail-screenshot">`
+                ? `<img src="${app.screenshot}" alt="${app.name}" style="width:100%;border-radius:8px;margin-bottom:16px;" onerror="this.style.display='none'">`
                 : '';
             
             modalBody.innerHTML = `
                 ${screenshotHtml}
-                <div class="detail-info">
-                    <div class="detail-row">
-                        <span class="detail-label">URL</span>
-                        <span class="detail-value"><a href="${app.url}" target="_blank" style="color: var(--accent);">${app.url}</a></span>
+                <div style="margin-bottom: 20px;">
+                    <div class="detail-row" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-color);">
+                        <span style="color:var(--text-secondary);font-size:13px;">URL</span>
+                        <a href="${app.url}" target="_blank" style="color:var(--accent);font-size:14px;">${app.url}</a>
                     </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Port</span>
-                        <span class="detail-value">${app.port}</span>
+                    <div class="detail-row" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-color);">
+                        <span style="color:var(--text-secondary);font-size:13px;">Port</span>
+                        <span style="font-size:14px;">${app.port}</span>
                     </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Category</span>
-                        <span class="detail-value category-${app.category}">${app.category}</span>
+                    <div class="detail-row" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-color);">
+                        <span style="color:var(--text-secondary);font-size:13px;">Category</span>
+                        <span style="font-size:14px;">${app.category}</span>
                     </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Status</span>
-                        <span class="detail-value">
+                    <div class="detail-row" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-color);">
+                        <span style="color:var(--text-secondary);font-size:13px;">Status</span>
+                        <span style="font-size:14px;">
                             <span class="status-indicator ${app.isOnline ? 'online' : 'offline'}"></span>
                             ${app.isOnline ? 'Online' : 'Offline'}
                         </span>
                     </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Response Time</span>
-                        <span class="detail-value">${app.responseTime ? app.responseTime + 'ms' : 'N/A'}</span>
+                    <div class="detail-row" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-color);">
+                        <span style="color:var(--text-secondary);font-size:13px;">Response Time</span>
+                        <span style="font-size:14px;">${app.responseTime ? app.responseTime + 'ms' : 'N/A'}</span>
                     </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Last Seen</span>
-                        <span class="detail-value">${app.lastSeen ? this.formatTimeAgo(new Date(app.lastSeen)) : 'Never'}</span>
+                    <div class="detail-row" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-color);">
+                        <span style="color:var(--text-secondary);font-size:13px;">Last Seen</span>
+                        <span style="font-size:14px;">${app.lastSeen ? this.formatTimeAgo(new Date(app.lastSeen)) : 'Never'}</span>
                     </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Discovered</span>
-                        <span class="detail-value">${app.createdAt ? this.formatTimeAgo(new Date(app.createdAt)) : 'Unknown'}</span>
+                    <div class="detail-row" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-color);">
+                        <span style="color:var(--text-secondary);font-size:13px;">Discovered</span>
+                        <span style="font-size:14px;">${app.createdAt ? this.formatTimeAgo(new Date(app.createdAt)) : 'Unknown'}</span>
                     </div>
-                </div>
-                <div class="detail-actions">
-                    <a href="${app.url}" target="_blank" class="btn btn-primary">Open App</a>
-                    <button class="btn btn-secondary" onclick="appMonitor.reidentifyApp('${app.id}')">Re-identify with AI</button>
-                    <button class="btn btn-danger" onclick="appMonitor.deleteApp('${app.id}')">Delete</button>
                 </div>
             `;
             
@@ -342,53 +435,25 @@ class WebAppMonitor {
         document.getElementById('page-title').textContent = info.title;
         document.getElementById('page-subtitle').textContent = info.subtitle;
         
-        // Show/hide filters and actions
-        const filterControls = document.querySelector('.filter-controls');
-        const headerActions = document.querySelector('.header-actions');
+        // Update section title
+        const sectionTitles = {
+            'dashboard': 'All Applications',
+            'all-apps': 'All Applications',
+            'online': 'Online Applications',
+            'offline': 'Offline Applications',
+            'settings': 'Settings'
+        };
+        document.getElementById('section-title').textContent = sectionTitles[view] || 'Applications';
         
-        if (view === 'settings') {
-            filterControls.style.display = 'none';
-            headerActions.style.display = 'none';
-            document.getElementById('apps-grid').innerHTML = this.getSettingsContent();
-        } else {
-            filterControls.style.display = 'flex';
-            headerActions.style.display = 'flex';
-            this.renderApps();
+        // Reset filter buttons for non-status views
+        if (view !== 'online' && view !== 'offline') {
+            document.querySelectorAll('.filter-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.filter === 'all');
+            });
+            this.filter.status = 'all';
         }
-    }
-
-    getSettingsContent() {
-        return `
-            <div class="settings-section">
-                <h3>Configuration</h3>
-                <p style="color: var(--text-secondary); margin-bottom: 24px;">
-                    Settings are managed in config.json. Restart the server to apply changes.
-                </p>
-                
-                <div class="detail-info" style="max-width: 600px;">
-                    <div class="detail-row">
-                        <span class="detail-label">Dashboard Port</span>
-                        <span class="detail-value">3000</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Scan Interval</span>
-                        <span class="detail-value">5 minutes</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Port Range</span>
-                        <span class="detail-value">1-65535</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Screenshots</span>
-                        <span class="detail-value">Enabled</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">AI Recognition</span>
-                        <span class="detail-value">Ollama (llama3.2)</span>
-                    </div>
-                </div>
-            </div>
-        `;
+        
+        this.renderApps();
     }
 
     async startQuickScan() {
@@ -478,7 +543,11 @@ class WebAppMonitor {
             app.responseTime = data.responseTime;
             app.lastSeen = new Date().toISOString();
             this.renderApps();
-            this.loadApps();
+            this.updateStats({
+                totalApps: this.apps.length,
+                onlineApps: this.apps.filter(a => a.isOnline).length,
+                offlineApps: this.apps.filter(a => !a.isOnline).length
+            });
         }
     }
 
@@ -491,16 +560,14 @@ class WebAppMonitor {
             if (data.available) {
                 statusEl.classList.add('available');
                 statusEl.classList.remove('unavailable');
-                statusEl.querySelector('.status-text').textContent = `AI: ${data.models[0] || 'Ollama'} available`;
             } else {
                 statusEl.classList.add('unavailable');
                 statusEl.classList.remove('available');
-                statusEl.querySelector('.status-text').textContent = 'AI: Ollama not available';
             }
         } catch (error) {
             const statusEl = document.getElementById('ollama-status');
             statusEl.classList.add('unavailable');
-            statusEl.querySelector('.status-text').textContent = 'AI: Unable to check';
+            statusEl.classList.remove('available');
         }
     }
 
@@ -521,14 +588,25 @@ class WebAppMonitor {
         const container = document.getElementById('toast-container');
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
+        
+        const icons = {
+            success: 'fa-check-circle',
+            error: 'fa-times-circle',
+            warning: 'fa-exclamation-circle',
+            info: 'fa-info-circle'
+        };
+        
         toast.innerHTML = `
-            <span>${type === 'success' ? '✅' : type === 'error' ? '❌' : type === 'warning' ? '⚠️' : 'ℹ️'}</span>
-            <span>${message}</span>
+            <span class="toast-icon"><i class="fas ${icons[type] || icons.info}"></i></span>
+            <div class="toast-content">
+                <div class="toast-message">${message}</div>
+            </div>
         `;
         container.appendChild(toast);
         
         setTimeout(() => {
-            toast.style.animation = 'slideIn 0.3s ease reverse';
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(100%)';
             setTimeout(() => toast.remove(), 300);
         }, 4000);
     }
