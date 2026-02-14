@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local WebApp Monitor</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <span class="logo-icon">🔍</span>
+                <h1>WebApp Monitor</h1>
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" data-view="dashboard">
+                    <span class="nav-icon">📊</span>
+                    Dashboard
+                </a>
+                <a href="#" class="nav-item" data-view="all-apps">
+                    <span class="nav-icon">🌐</span>
+                    All Applications
+                </a>
+                <a href="#" class="nav-item" data-view="online">
+                    <span class="nav-icon">✅</span>
+                    Online <span class="badge" id="online-count">0</span>
+                </a>
+                <a href="#" class="nav-item" data-view="offline">
+                    <span class="nav-icon">❌</span>
+                    Offline <span class="badge" id="offline-count">0</span>
+                </a>
+                <a href="#" class="nav-item" data-view="settings">
+                    <span class="nav-icon">⚙️</span>
+                    Settings
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="ollama-status" id="ollama-status">
+                    <span class="status-dot"></span>
+                    <span class="status-text">AI: Checking...</span>
+                </div>
+            </div>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <h2 id="page-title">Dashboard</h2>
+                    <span class="subtitle" id="page-subtitle">Overview of your local web applications</span>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" id="health-check-btn">
+                        <span>🔄</span> Health Check
+                    </button>
+                    <button class="btn btn-primary" id="quick-scan-btn">
+                        <span>⚡</span> Quick Scan
+                    </button>
+                    <button class="btn btn-accent" id="full-scan-btn">
+                        <span>🔍</span> Full Scan
+                    </button>
+                </div>
+            </header>
+            
+            <!-- Stats Cards -->
+            <div class="stats-grid" id="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon total">🌐</div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="total-apps">0</span>
+                        <span class="stat-label">Total Apps</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon online">✅</div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="stat-online">0</span>
+                        <span class="stat-label">Online</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon offline">❌</div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="stat-offline">0</span>
+                        <span class="stat-label">Offline</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon last-scan">⏱️</div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="last-scan">Never</span>
+                        <span class="stat-label">Last Scan</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Loading Overlay -->
+            <div class="loading-overlay" id="loading-overlay">
+                <div class="loading-spinner"></div>
+                <p id="loading-text">Scanning...</p>
+            </div>
+            
+            <!-- Apps Grid -->
+            <div class="apps-section">
+                <div class="section-header">
+                    <h3 id="section-title">All Applications</h3>
+                    <div class="filter-controls">
+                        <input type="text" class="search-input" id="search-input" placeholder="Search apps...">
+                        <select class="filter-select" id="category-filter">
+                            <option value="all">All Categories</option>
+                            <option value="Development">Development</option>
+                            <option value="Database">Database</option>
+                            <option value="API">API</option>
+                            <option value="CI/CD">CI/CD</option>
+                            <option value="Monitoring">Monitoring</option>
+                            <option value="AI/ML">AI/ML</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="apps-grid" id="apps-grid">
+                    <!-- Apps will be inserted here -->
+                </div>
+                
+                <div class="empty-state" id="empty-state">
+                    <div class="empty-icon">🔍</div>
+                    <h3>No applications found</h3>
+                    <p>Run a scan to discover web applications on your machine</p>
+                    <button class="btn btn-primary" id="empty-scan-btn">Start Quick Scan</button>
+                </div>
+            </div>
+            
+            <!-- Toast Notifications -->
+            <div class="toast-container" id="toast-container"></div>
+        </main>
+    </div>
+    
+    <!-- App Detail Modal -->
+    <div class="modal-overlay" id="app-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modal-title">Application Details</h3>
+                <button class="modal-close" id="modal-close">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- App details will be inserted here -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add App Modal -->
+    <div class="modal-overlay" id="add-app-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Add Application</h3>
+                <button class="modal-close" id="add-app-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="add-app-form">
+                    <div class="form-group">
+                        <label for="app-url">URL</label>
+                        <input type="url" id="app-url" placeholder="http://localhost:3000" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="app-name">Name (optional)</label>
+                        <input type="text" id="app-name" placeholder="My App">
+                    </div>
+                    <div class="form-group">
+                        <label for="app-category">Category (optional)</label>
+                        <select id="app-category">
+                            <option value="Unknown">Select...</option>
+                            <option value="Development">Development</option>
+                            <option value="Database">Database</option>
+                            <option value="API">API</option>
+                            <option value="CI/CD">CI/CD</option>
+                            <option value="Monitoring">Monitoring</option>
+                            <option value="AI/ML">AI/ML</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Application</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>

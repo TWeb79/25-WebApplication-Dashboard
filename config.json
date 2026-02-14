@@ -1,0 +1,25 @@
+{
+  "portRange": {
+    "start": 80,
+    "end": 18000
+  },
+  "scanIntervalMs": 60000,
+  "ollama": {
+    "model": "minimax-m2.1:cloud",
+    "baseUrl": "http://localhost:11434"
+  },
+  "dashboardPort": "auto",
+  "screenshot": {
+    "width": 400,
+    "height": 300,
+    "quality": 70
+  },
+  "docker": {
+    "enabled": false,
+    "chromeWsEndpoint": null
+  },
+  "scanning": {
+    "concurrency": 100,
+    "timeoutMs": 2000
+  }
+}
