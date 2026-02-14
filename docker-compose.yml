@@ -1,0 +1,18 @@
+services:
+  web:
+    build: .
+    image: local-webapp-monitor:latest
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      DOCKER_CONTAINER: "true"
+      # Keep scanning pointed at the Docker host, while allowing returned links
+      # to be rewritten to a LAN IP (see TARGET_HOST below)
+      SCAN_HOST: "host.docker.internal"
+      # Optional but recommended: set this to your host LAN IP so all generated links
+      # use a reachable address from other devices on the network.
+      TARGET_HOST: "192.168.6.149"
+    volumes:
+      - ./data:/usr/src/app/data
+    restart: unless-stopped

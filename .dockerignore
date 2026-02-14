@@ -6,5 +6,7 @@ data/
 \.git
 \.vscode
 README.md
-Dockerfile
 docker-compose.yml
+# Keep Dockerfile in build context so docker-compose can use it
+
+

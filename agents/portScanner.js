@@ -6,7 +6,13 @@ const config = require('../config.json');
 const getScanHost = () => {
     // Check if we're in Docker and use host.docker.internal as fallback
     const isDocker = process.env.DOCKER_CONTAINER || false;
+    const envHost = process.env.SCAN_HOST;
     const targetHost = config.targetHost || 'localhost';
+
+    // If an explicit scan host is provided (e.g. host.docker.internal), always use it.
+    if (envHost && typeof envHost === 'string') {
+        return envHost;
+    }
     
     // If targetHost is explicitly set to a non-localhost value, use it
     if (targetHost !== 'localhost' && targetHost !== '127.0.0.1') {

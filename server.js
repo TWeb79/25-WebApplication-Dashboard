@@ -1,9 +1,9 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const config = require('./config.json');
+let config = require('./config.json');
 const database = require('./database/db');
-const { getLANIpAddress, convertToLANUrl, isLocalhostUrl } = require('./utils/networkUtils');
+const { getTargetIP, getLANIpAddress, convertToLANUrl, isLocalhostUrl, isDockerContainer } = require('./utils/networkUtils');
 
 // Import agents
 const PortScanner = require('./agents/portScanner');
@@ -38,13 +38,62 @@ function broadcast(data) {
     io.emit('message', data);
 }
 
+// Prefer a configured target host (from config.json) when converting URLs —
+// falls back to auto-detected LAN IP
+function getPreferredTarget() {
+    if (config && config.targetHost && config.targetHost !== 'localhost') {
+        return config.targetHost;
+    }
+    return getTargetIP();
+}
+
+function extractLanHostFromRequest(req) {
+    // Prefer forwarded host (if behind proxy), else use Host header
+    const rawHost = (req.headers['x-forwarded-host'] || req.headers['host'] || '').toString();
+    const firstHost = rawHost.split(',')[0].trim();
+    const hostOnly = firstHost.replace(/:\d+$/, '');
+
+    // We only trust private LAN IPv4 hosts for URL rewriting
+    if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostOnly)) return hostOnly;
+
+    return null;
+}
+
+function getResponseTargetHost(req) {
+    // 1) Explicit config override
+    if (config && config.targetHost && config.targetHost !== 'localhost') {
+        return config.targetHost;
+    }
+
+    // 2) If a client accesses the dashboard via a LAN IP, echo that back in converted URLs.
+    // This makes links usable from phones/other computers on the LAN.
+    const reqLanHost = extractLanHostFromRequest(req);
+    if (reqLanHost) {
+        // Learn the correct LAN host automatically when someone accesses the dashboard via LAN.
+        // This ensures WebSocket broadcasts and future requests also use the 192.168.* address.
+        if (config && (!config.targetHost || config.targetHost === 'localhost')) {
+            config.targetHost = reqLanHost;
+            try {
+                const fs = require('fs');
+                fs.writeFileSync(require('path').join(__dirname, 'config.json'), JSON.stringify(config, null, 2));
+            } catch (e) {
+                // Non-fatal
+            }
+        }
+        return reqLanHost;
+    }
+
+    // 3) Fallback to auto-detection/env override
+    return getTargetIP();
+}
+
 // ==================== API ENDPOINTS ====================
 
 // Get all apps
 app.get('/api/apps', (req, res) => {
     const apps = database.getAllApps();
     const stats = database.getStats();
-    const lanIp = getLANIpAddress();
+    const lanIp = getResponseTargetHost(req);
     
     // Convert screenshots to base64 data URLs and add computed fields
     // Also convert localhost URLs to LAN IP for external access
@@ -73,7 +122,7 @@ app.get('/api/apps/:id', (req, res) => {
     }
     
     const history = database.getScanHistory(req.params.id);
-    const lanIp = getLANIpAddress();
+    const lanIp = getResponseTargetHost(req);
     
     res.json({
         ...app,
@@ -115,7 +164,7 @@ app.put('/api/apps/:id', (req, res) => {
     
     const updatedApp = database.getApp(req.params.id);
     // Convert URL to LAN IP for network accessibility
-    const lanIp = getLANIpAddress();
+    const lanIp = getResponseTargetHost(req);
     const updatedAppWithLanUrl = {
         ...updatedApp,
         url: convertToLANUrl(updatedApp.url, lanIp)
@@ -154,7 +203,7 @@ app.post('/api/scan/quick', async (req, res) => {
             database.recordScan(server.url, health.status, health.responseTime);
             
             // Convert URL to LAN IP for network accessibility
-            const lanIp = getLANIpAddress();
+            const lanIp = getResponseTargetHost(req);
             const appWithLanUrl = {
                 ...app,
                 ...identification,
@@ -191,7 +240,7 @@ app.post('/api/scan/full', async (req, res) => {
             database.recordScan(server.url, health.status, health.responseTime);
             
             // Convert URL to LAN IP for network accessibility
-            const lanIp = getLANIpAddress();
+            const lanIp = getResponseTargetHost(req);
             const appWithLanUrl = {
                 ...app,
                 ...identification,
@@ -359,7 +408,7 @@ app.post('/api/apps', async (req, res) => {
         database.recordScan(url, health.status, health.responseTime);
         
         // Convert URL to LAN IP for network accessibility
-        const lanIp = getLANIpAddress();
+        const lanIp = getResponseTargetHost(req);
         const appWithLanUrl = {
             ...app,
             url: convertToLANUrl(app.url, lanIp)
@@ -391,7 +440,7 @@ app.post('/api/ai/identify/:id', async (req, res) => {
         const updatedApp = database.getApp(req.params.id);
         
         // Convert URL to LAN IP for network accessibility
-        const lanIp = getLANIpAddress();
+        const lanIp = getResponseTargetHost(req);
         const updatedAppWithLanUrl = {
             ...updatedApp,
             url: convertToLANUrl(updatedApp.url, lanIp)
@@ -442,6 +491,28 @@ app.post('/api/ai/test', async (req, res) => {
     }
 });
 
+// UI configuration endpoint: get and set basic UI settings (targetHost)
+app.get('/api/ui/config', (req, res) => {
+    res.json({ targetHost: config.targetHost || 'localhost' });
+});
+
+app.post('/api/ui/config', (req, res) => {
+    const { targetHost } = req.body || {};
+    if (targetHost && typeof targetHost === 'string') {
+        config.targetHost = targetHost;
+        // Persist to config.json if possible
+        try {
+            const fs = require('fs');
+            fs.writeFileSync(require('path').join(__dirname, 'config.json'), JSON.stringify(config, null, 2));
+        } catch (e) {
+            // If we can't persist, keep in-memory and return success
+            console.warn('[Server] Could not persist UI config:', e.message);
+        }
+        return res.json({ success: true, targetHost: config.targetHost });
+    }
+    res.status(400).json({ success: false, error: 'Invalid targetHost' });
+});
+
 // Set Ollama model
 app.post('/api/ai/model', async (req, res) => {
     try {
@@ -465,27 +536,40 @@ app.post('/api/ai/model', async (req, res) => {
 
 async function initialize() {
     console.log('[Server] Initializing Local WebApp Monitor...');
-    
-    // Run quick scan on startup
-    console.log('[Server] Running initial quick scan...');
-    try {
-        const discovered = await portScanner.quickScan();
-        
-        for (const server of discovered) {
-            const content = await screenshotAgent.getPageContent(server.url);
-            const identification = await aiAgent.identifyApp(server.url, content.title, content);
-            const app = database.addApp(server.url, server.port, identification.name, identification.category);
-            
-            const health = await healthChecker.check(server.url);
-            database.recordScan(server.url, health.status, health.responseTime);
-            
-            console.log(`[Server] Discovered: ${identification.name} at ${server.url}`);
+
+    // Start server ASAP so the dashboard/API is reachable even if scanning/screenshotting takes time.
+    const port = config.dashboardPort === 'auto' ? 3000 : config.dashboardPort;
+    const publicHost = getPreferredTarget();
+    server.listen(port, '0.0.0.0', () => {
+        console.log(`[Server] Dashboard running at http://localhost:${port}`);
+        if (publicHost) {
+            console.log(`[Server] Network access: http://${publicHost}:${port}`);
         }
-        
-        console.log(`[Server] Initial scan found ${discovered.length} applications`);
-    } catch (error) {
-        console.error('[Server] Initial scan error:', error);
-    }
+        console.log('[Server] Ready to monitor your local web applications!');
+    });
+    
+    // Run quick scan on startup (async, do not block server listen)
+    (async () => {
+        console.log('[Server] Running initial quick scan...');
+        try {
+            const discovered = await portScanner.quickScan();
+
+            for (const srv of discovered) {
+                const content = await screenshotAgent.getPageContent(srv.url);
+                const identification = await aiAgent.identifyApp(srv.url, content.title, content);
+                database.addApp(srv.url, srv.port, identification.name, identification.category);
+
+                const health = await healthChecker.check(srv.url);
+                database.recordScan(srv.url, health.status, health.responseTime);
+
+                console.log(`[Server] Discovered: ${identification.name} at ${srv.url}`);
+            }
+
+            console.log(`[Server] Initial scan found ${discovered.length} applications`);
+        } catch (error) {
+            console.error('[Server] Initial scan error:', error);
+        }
+    })();
     
     // Start periodic health checks
     setInterval(async () => {
@@ -504,16 +588,7 @@ async function initialize() {
         }
     }, config.scanIntervalMs);
     
-    // Start server
-    const port = config.dashboardPort === 'auto' ? 3000 : config.dashboardPort;
-    const lanIp = getLANIpAddress();
-    server.listen(port, '0.0.0.0', () => {
-        console.log(`[Server] Dashboard running at http://localhost:${port}`);
-        if (lanIp) {
-            console.log(`[Server] Network access: http://${lanIp}:${port}`);
-        }
-        console.log('[Server] Ready to monitor your local web applications!');
-    });
+    // server.listen() is called above
 }
 
 // Handle shutdown

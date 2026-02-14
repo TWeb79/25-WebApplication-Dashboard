@@ -26,6 +26,20 @@ class WebAppMonitor {
         await this.loadApps();
     }
 
+    // Allow user to configure the dashboard's target host used to convert localhost -> LAN IP
+    async saveUiConfig(config) {
+        try {
+            const resp = await fetch('/api/ui/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+            return resp.ok;
+        } catch (e) {
+            return false;
+        }
+    }
+
     // Load auto-refresh setting from localStorage
     loadAutoRefresh() {
         try {
