@@ -13,7 +13,7 @@ class ScreenshotAgent {
         this.thumbnails = config.screenshot.thumbnails !== false;
         this.thumbnailWidth = config.screenshot.thumbnailWidth || 120;
         this.thumbnailHeight = config.screenshot.thumbnailHeight || 90;
-        this.dockerMode = config.docker.enabled;
+        this.dockerMode = config.docker.enabled || process.env.DOCKER_CONTAINER === 'true';
         this.chromeWsEndpoint = config.docker.chromeWsEndpoint;
         this.browser = null;
     }
@@ -28,6 +28,19 @@ class ScreenshotAgent {
             // Connect to Chrome in Docker
             this.browser = await puppeteer.connect({
                 browserWSEndpoint: this.chromeWsEndpoint
+            });
+        } else if (this.dockerMode) {
+            // Launch Chromium in Docker
+            this.browser = await puppeteer.launch({
+                executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
+                headless: 'new',
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-gpu',
+                    '--window-size=800,600'
+                ]
             });
         } else {
             // Launch local browser

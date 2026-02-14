@@ -1,5 +1,12 @@
 FROM node:20-alpine
 
+# Install Chromium for Puppeteer
+RUN apk add --no-cache chromium chromium-chromedriver
+
+# Set environment variables for Puppeteer
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV PUPPETEER_CHROMIUM_ARGS="--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage"
+
 # Create app directory
 WORKDIR /usr/src/app
 
