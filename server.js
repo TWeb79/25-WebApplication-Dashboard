@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const config = require('./config.json');
 const database = require('./database/db');
+const { getLANIpAddress, convertToLANUrl, isLocalhostUrl } = require('./utils/networkUtils');
 
 // Import agents
 const PortScanner = require('./agents/portScanner');
@@ -43,10 +44,13 @@ function broadcast(data) {
 app.get('/api/apps', (req, res) => {
     const apps = database.getAllApps();
     const stats = database.getStats();
+    const lanIp = getLANIpAddress();
     
     // Convert screenshots to base64 data URLs and add computed fields
+    // Also convert localhost URLs to LAN IP for external access
     const appsWithScreenshots = apps.map(app => ({
         ...app,
+        url: convertToLANUrl(app.url, lanIp),
         isOnline: app.status === 'online',
         lastSeen: app.last_checked_at,
         createdAt: app.discovered_at,
@@ -69,9 +73,11 @@ app.get('/api/apps/:id', (req, res) => {
     }
     
     const history = database.getScanHistory(req.params.id);
+    const lanIp = getLANIpAddress();
     
     res.json({
         ...app,
+        url: convertToLANUrl(app.url, lanIp),
         isOnline: app.status === 'online',
         lastSeen: app.last_checked_at,
         createdAt: app.discovered_at,
@@ -106,7 +112,15 @@ app.put('/api/apps/:id', (req, res) => {
     // Update fields
     const db = require('better-sqlite3')(database.db.name);
     // Note: In real implementation, add proper update methods
-    res.json({ success: true, app: database.getApp(req.params.id) });
+    
+    const updatedApp = database.getApp(req.params.id);
+    // Convert URL to LAN IP for network accessibility
+    const lanIp = getLANIpAddress();
+    const updatedAppWithLanUrl = {
+        ...updatedApp,
+        url: convertToLANUrl(updatedApp.url, lanIp)
+    };
+    res.json({ success: true, app: updatedAppWithLanUrl });
 });
 
 // Get stats
@@ -139,7 +153,14 @@ app.post('/api/scan/quick', async (req, res) => {
             const health = await healthChecker.check(server.url);
             database.recordScan(server.url, health.status, health.responseTime);
             
-            broadcast({ type: 'app_discovered', app: { ...app, ...identification } });
+            // Convert URL to LAN IP for network accessibility
+            const lanIp = getLANIpAddress();
+            const appWithLanUrl = {
+                ...app,
+                ...identification,
+                url: convertToLANUrl(app.url, lanIp)
+            };
+            broadcast({ type: 'app_discovered', app: appWithLanUrl });
         }
         
         broadcast({ type: 'scan_complete', mode: 'quick', found: discovered.length });
@@ -169,7 +190,14 @@ app.post('/api/scan/full', async (req, res) => {
             const health = await healthChecker.check(server.url);
             database.recordScan(server.url, health.status, health.responseTime);
             
-            broadcast({ type: 'app_discovered', app: { ...app, ...identification } });
+            // Convert URL to LAN IP for network accessibility
+            const lanIp = getLANIpAddress();
+            const appWithLanUrl = {
+                ...app,
+                ...identification,
+                url: convertToLANUrl(app.url, lanIp)
+            };
+            broadcast({ type: 'app_discovered', app: appWithLanUrl });
         }
         
         broadcast({ type: 'scan_complete', mode: 'full', found: discovered.length });
@@ -330,8 +358,14 @@ app.post('/api/apps', async (req, res) => {
         const health = await healthChecker.check(url);
         database.recordScan(url, health.status, health.responseTime);
         
-        broadcast({ type: 'app_added', app });
-        res.json({ success: true, app });
+        // Convert URL to LAN IP for network accessibility
+        const lanIp = getLANIpAddress();
+        const appWithLanUrl = {
+            ...app,
+            url: convertToLANUrl(app.url, lanIp)
+        };
+        broadcast({ type: 'app_added', app: appWithLanUrl });
+        res.json({ success: true, app: appWithLanUrl });
         
     } catch (error) {
         console.error('[Server] Add app error:', error);
@@ -355,7 +389,14 @@ app.post('/api/ai/identify/:id', async (req, res) => {
         db.addApp(app.url, app.port, identification.name, identification.category);
         
         const updatedApp = database.getApp(req.params.id);
-        broadcast({ type: 'app_updated', app: updatedApp });
+        
+        // Convert URL to LAN IP for network accessibility
+        const lanIp = getLANIpAddress();
+        const updatedAppWithLanUrl = {
+            ...updatedApp,
+            url: convertToLANUrl(updatedApp.url, lanIp)
+        };
+        broadcast({ type: 'app_updated', app: updatedAppWithLanUrl });
         
         res.json({ success: true, identification });
         
@@ -465,8 +506,12 @@ async function initialize() {
     
     // Start server
     const port = config.dashboardPort === 'auto' ? 3000 : config.dashboardPort;
+    const lanIp = getLANIpAddress();
     server.listen(port, '0.0.0.0', () => {
         console.log(`[Server] Dashboard running at http://localhost:${port}`);
+        if (lanIp) {
+            console.log(`[Server] Network access: http://${lanIp}:${port}`);
+        }
         console.log('[Server] Ready to monitor your local web applications!');
     });
 }
