@@ -74,6 +74,14 @@ const updateAppStatus = db.prepare(`
 const updateAppName = db.prepare(`UPDATE apps SET name = ? WHERE url = ?`);
 const updateAppCategory = db.prepare(`UPDATE apps SET category = ? WHERE url = ?`);
 
+const updateAppMetadata = db.prepare(`
+    UPDATE apps 
+    SET name = COALESCE(?, name), 
+        description = COALESCE(?, description),
+        category = COALESCE(?, category)
+    WHERE url = ?
+`);
+
 const updateScreenshot = db.prepare(`
     UPDATE apps SET screenshot = ?, thumbnail = ?, screenshot_updated_at = CURRENT_TIMESTAMP WHERE id = ?
 `);
@@ -126,6 +134,21 @@ const database = {
         if (app) {
             updateAppStatus.run(status, url);
             insertScanHistory.run(app.id, status, responseTimeMs);
+        }
+    },
+
+    // Update app metadata (name, description, category)
+    updateMetadata: (url, name, description, category) => {
+        const app = getAppByUrl.get(url);
+        if (app) {
+            // Only update if the new value is not null and existing is null or empty
+            const newName = name && (!app.name || app.name.startsWith('Port ')) ? name : null;
+            const newDesc = description && !app.description ? description : null;
+            const newCat = category && (!app.category || app.category === 'Unknown') ? category : null;
+            
+            if (newName || newDesc || newCat) {
+                updateAppMetadata.run(newName, newDesc, newCat, url);
+            }
         }
     },
 

@@ -63,6 +63,7 @@ class HealthChecker {
         let title = null;
         let redirectUrl = null;
         let isHttpResponse = true;
+        let metaData = null;
         
         // Extract port from URL
         let port;
@@ -102,6 +103,12 @@ class HealthChecker {
             // Extract title from HTML
             if (response.headers['content-type']?.includes('text/html')) {
                 title = this.extractTitle(response.data);
+                
+                // Also extract meta tags
+                const metaTags = this.extractMetaTags(response.data);
+                if (metaTags) {
+                    metaData = metaTags;
+                }
             }
 
         } catch (error) {
@@ -136,6 +143,7 @@ class HealthChecker {
             title,
             redirectUrl,
             isHttpResponse,
+            metaData,
             checkedAt: new Date().toISOString()
         };
     }
@@ -148,6 +156,48 @@ class HealthChecker {
         
         const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
         return match ? match[1].trim() : null;
+    }
+
+    /**
+     * Extract meta tags from HTML content
+     * Returns an object with name, description, and category
+     */
+    extractMetaTags(html) {
+        if (!html || typeof html !== 'string') return null;
+        
+        const metaTags = {
+            name: null,
+            description: null,
+            category: null
+        };
+        
+        // Extract application-name - try various patterns
+        let match = html.match(/<meta[^>]+name=["']application-name["'][^>]+content=["']([^"']+)["']/i);
+        if (!match) match = html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']application-name["']/i);
+        if (!match) match = html.match(/<meta[^>]+name=["']application-name["'][^>]+content=([^\s>]+)/i);
+        if (match) metaTags.name = match[1].trim();
+        
+        // Extract application-description - try various patterns
+        match = html.match(/<meta[^>]+name=["']application-description["'][^>]+content=["']([^"']+)["']/i);
+        if (!match) match = html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']application-description["']/i);
+        if (!match) match = html.match(/<meta[^>]+name=["']application-description["'][^>]+content=([^\s>]+)/i);
+        if (match) {
+            metaTags.description = match[1].trim();
+            console.log('[HealthChecker] Found description:', metaTags.description);
+        }
+        
+        // Extract application-category
+        match = html.match(/<meta[^>]+name=["']application-category["'][^>]+content=["']([^"']+)["']/i);
+        if (!match) match = html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']application-category["']/i);
+        if (!match) match = html.match(/<meta[^>]+name=["']application-category["'][^>]+content=([^\s>]+)/i);
+        if (match) metaTags.category = match[1].trim();
+        
+        // If no application-name, fall back to title
+        if (!metaTags.name) {
+            metaTags.name = this.extractTitle(html);
+        }
+        
+        return metaTags;
     }
 
     /**

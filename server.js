@@ -239,6 +239,16 @@ app.post('/api/scan/full', async (req, res) => {
             const health = await healthChecker.check(server.url);
             database.recordScan(server.url, health.status, health.responseTime);
             
+            // Update metadata if available
+            if (health.metaData) {
+                database.updateMetadata(
+                    server.url,
+                    health.metaData.name,
+                    health.metaData.description,
+                    health.metaData.category
+                );
+            }
+            
             // Convert URL to LAN IP for network accessibility
             const lanIp = getResponseTargetHost(req);
             const appWithLanUrl = {
@@ -273,6 +283,16 @@ app.post('/api/health-check', async (req, res) => {
         
         for (const result of results) {
             database.recordScan(result.url, result.status, result.responseTime);
+            
+            // Update metadata if available
+            if (result.metaData && result.status === 'online') {
+                database.updateMetadata(
+                    result.url,
+                    result.metaData.name,
+                    result.metaData.description,
+                    result.metaData.category
+                );
+            }
             
             if (result.status === 'online') online++;
             else offline++;

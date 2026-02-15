@@ -1,5 +1,12 @@
 const puppeteer = require('puppeteer');
+const sharp = require('sharp');
 const config = require('../config.json');
+
+// Target dimensions for screenshots
+const CAPTURE_WIDTH = 800;
+const CAPTURE_HEIGHT = 600;
+const TARGET_WIDTH = 280;
+const TARGET_HEIGHT = 160;
 
 /**
  * Screenshot Agent
@@ -60,6 +67,42 @@ class ScreenshotAgent {
     }
 
     /**
+     * Process screenshot: resize to target width maintaining aspect ratio, then crop to target height
+     */
+    async processScreenshot(buffer) {
+        try {
+            const image = sharp(buffer);
+            const metadata = await image.metadata();
+            
+            // Calculate height to maintain aspect ratio when width is TARGET_WIDTH
+            const aspectRatio = metadata.height / metadata.width;
+            const resizedHeight = Math.round(TARGET_WIDTH * aspectRatio);
+            
+            // Resize to target width, maintaining aspect ratio
+            let processed = await image
+                .resize(TARGET_WIDTH, resizedHeight, {
+                    fit: 'fill'
+                })
+                .toBuffer();
+            
+            // Crop to target height (from top)
+            processed = await sharp(processed)
+                .extract({
+                    left: 0,
+                    top: 0,
+                    width: TARGET_WIDTH,
+                    height: TARGET_HEIGHT
+                })
+                .toBuffer();
+            
+            return processed;
+        } catch (error) {
+            console.error('[ScreenshotAgent] Error processing screenshot:', error.message);
+            return buffer; // Return original if processing fails
+        }
+    }
+
+    /**
      * Capture screenshot of a URL
      */
     async captureScreenshot(url, appId) {
@@ -70,10 +113,10 @@ class ScreenshotAgent {
             browser = await this.initBrowser();
             page = await browser.newPage();
 
-            // Set viewport
+            // Set viewport to 800x600 for capture
             await page.setViewport({
-                width: this.width,
-                height: this.height
+                width: CAPTURE_WIDTH,
+                height: CAPTURE_HEIGHT
             });
 
             // Navigate to URL with timeout
@@ -91,25 +134,15 @@ class ScreenshotAgent {
                 fullPage: false
             });
 
-            // Capture thumbnail if enabled
-            let thumbnailBuffer = null;
-            if (this.thumbnails) {
-                await page.setViewport({
-                    width: this.thumbnailWidth,
-                    height: this.thumbnailHeight
-                });
-                thumbnailBuffer = await page.screenshot({
-                    type: 'png',
-                    fullPage: false
-                });
-            }
+            // Process screenshot: resize to 280px width, then crop to 160px height
+            const processedBuffer = await this.processScreenshot(screenshotBuffer);
 
-            console.log(`[ScreenshotAgent] Captured screenshot for ${url} (${screenshotBuffer.length} bytes)`);
+            console.log(`[ScreenshotAgent] Captured screenshot for ${url} (${processedBuffer.length} bytes)`);
 
             return {
                 success: true,
-                buffer: screenshotBuffer,
-                thumbnail: thumbnailBuffer,
+                buffer: processedBuffer,
+                thumbnail: null, // Thumbnail disabled, using main image
                 appId
             };
 

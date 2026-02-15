@@ -11,8 +11,8 @@
   },
   "dashboardPort": "auto",
   "screenshot": {
-    "width": 400,
-    "height": 300,
+    "width": 281,
+    "height": 160,
     "quality": 70,
     "thumbnails": true,
     "thumbnailWidth": 120,
