@@ -471,6 +471,7 @@ class WebAppMonitor {
                             <i class="fas fa-external-link-alt"></i>
                             ${this.escapeHtml(app.url)}
                         </a>
+                        ${app.description ? `<small class="app-description">${this.escapeHtml(app.description)}</small>` : ''}
                     </div>
                     <div class="app-meta-row">
                         <div class="app-response-time">

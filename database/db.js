@@ -27,6 +27,7 @@ db.exec(`
         thumbnail BLOB,
         screenshot_updated_at DATETIME,
         category TEXT,
+        description TEXT,
         discovered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         last_checked_at DATETIME,
         notes TEXT
@@ -49,6 +50,13 @@ db.exec(`
 // Add thumbnail column if it doesn't exist (migration)
 try {
     db.exec(`ALTER TABLE apps ADD COLUMN thumbnail BLOB`);
+} catch (e) {
+    // Column already exists, ignore
+}
+
+// Add description column if it doesn't exist (migration)
+try {
+    db.exec(`ALTER TABLE apps ADD COLUMN description TEXT`);
 } catch (e) {
     // Column already exists, ignore
 }

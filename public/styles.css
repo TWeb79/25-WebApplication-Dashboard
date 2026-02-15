@@ -669,6 +669,14 @@ input, select {
     color: var(--accent-light);
 }
 
+.app-description {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+    font-style: italic;
+}
+
 .app-meta-row {
     display: flex;
     justify-content: space-between;
