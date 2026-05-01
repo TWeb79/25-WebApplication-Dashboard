@@ -1,7 +1,11 @@
-FROM node:20-alpine
+FROM debian:12-slim
 
-# Install Chromium for Puppeteer
-RUN apk add --no-cache chromium chromium-chromedriver
+# Install Node.js 20 and Chromium for Puppeteer
+RUN apt-get update && \
+    apt-get install -y curl gnupg && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs chromium && \
+    rm -rf /var/lib/apt/lists/*
 
 # Set environment variables for Puppeteer
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
